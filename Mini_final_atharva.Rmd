@@ -1,0 +1,779 @@
+---
+title: "EDA_Mini_Project"
+author: "Atharva Mahesh Pore and Jagadeesh Chitturi"
+date: "2023-09-17"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Reading the necessary libraries
+```{r}
+library(tidyverse)
+library(readxl)
+
+```
+## Read the data and do basic preprocessing and cleaning
+
+## Question 1
+```{r}
+states= read.csv('State_and_US_SA.csv')
+cpi=read.csv('cpi.csv')
+
+state_code <- read.table('state_abbrevs.txt')
+
+states <- states[-c(1:4), ]
+
+colnames(states) <- states[1,]
+
+# Remove the first row, as it's now the column names
+states <- states[-1,]
+
+
+states$Year <- substr(states$Month, 1, 4)
+
+# Create a new column for the month
+states$Period <- substr(states$Month, 5, 7)
+```
+## Filtering the data so that just the data after 1975 gets considered
+```{r}
+# Assuming 'df' is your data frame with a 'year' column
+# Filter data for years after 1975
+filtered_cpi <- subset(cpi, Year >= 1975)
+```
+## Filtering the data so that just the data before 2019 gets considered
+```{r}
+states_2019<- subset(states, Year<=2019)
+```
+## Cleaning the data
+```{r}
+states_2019 <- states_2019[-c(546:565), ]
+```
+
+```{r}
+
+
+```
+
+```{r}
+states_long <- states[-c(546:565), ]
+
+```
+## Transforming the data into a long format for it to make sense
+```{r}
+df_long <- states_long %>%
+  pivot_longer(cols = -c(Year,Period), names_to = "State", values_to = "House Prices")
+```
+
+```{r}
+states_2019 <- states_2019[-c(546:565), ]
+
+```
+## Ommitting the null values
+```{r}
+na.omit(df_long)
+```
+## More Cleaning!!!
+```{r}
+# Delete rows with 'state' column as 'United States seasonally adjusted' from the original data frame
+df_long <- df_long[df_long$State != "United States seasonally adjusted", ]
+df_long <- df_long[df_long$State != "Month", ]
+df_long <- df_long[df_long$State != "month", ]
+
+```
+
+
+## Replicating the cpi data for it to fit the merged dataset
+```{r}
+expanded_dataset <- filtered_cpi[rep(1:nrow(filtered_cpi), each = 52), ]
+
+merged_dataset4 <- merge(df_long, filtered_cpi, by.x = c("Year", "Period"), by.y = c("Year", "Period"), all = FALSE)
+
+
+```
+
+## Calculating the inflation column
+```{r}
+merged_dataset4$`House Prices` <- as.numeric(merged_dataset4$`House Prices`)
+merged_dataset4$Value <- as.numeric(merged_dataset4$Value)
+
+# Create the 'inflation' column
+merged_dataset4$inflation <- (merged_dataset4$`House Prices` / merged_dataset4$Value) * 100
+
+
+```
+## Plotting the graph for house prices adjusted for inflation between 1975 and 2019
+```{r out.width="130%", out.height="130%"}
+
+ggplot(merged_dataset4, aes(x = Year, y = inflation)) +
+  facet_wrap(~ State, ncol = 13, nrow = 4) +
+  labs(x = "Year(ranging from 1975 to 2019)", y = "House Prices") +
+  theme_minimal() +
+  geom_line(size = 0.5, aes(color = "#1A9BDB")) +  # Set the line color and size
+  scale_color_manual(values = c("#1A9BDB" = "#1A9BDB")) +  # Specify the color
+  theme(
+    panel.spacing = unit(0.1, "lines")
+  ) +
+  ggtitle("Plot of House Prices Adjusted for Inflation from 1975 to 2019")
+
+
+
+
+
+```
+
+As we can see from the above plots, most of the states have increased their house prices over the years
+even with adjusted inflation. There are a few states such as the District of Columbia and Hawaii where
+the prices increased by a subsequent margin. Most of the states had there values increase but not as big of a margin as that of DC.  A few of the states that reduced the values were Ohio, Indiana and West Virginia 
+
+```{r}
+
+
+colnames(state_code) <- state_code[1,]
+
+# Remove the first row, as it's now the column names
+state_code <- state_code[-1,]
+
+
+merged_dataset4 <- merge(merged_dataset4, state_code, by.x = "State", by.y = "Code", all.x = TRUE)
+
+
+merged_dataset4 <- subset(merged_dataset4, !is.na(Region))
+
+```
+## Plotting the house prices over the years regionwise
+
+```{r}
+grouped_data <- merged_dataset4 %>%
+  group_by(as.character(Year), Region) %>%
+  summarise(mean_prices = mean(inflation))
+grouped_data
+
+grouped_data <- subset(grouped_data, !is.na(Region))
+
+colnames(grouped_data)[colnames(grouped_data) == 'as.character(Year)'] <- 'Year'
+
+Midwest=grouped_data[grouped_data$Region=="Midwest",]
+
+ggplot(grouped_data, aes(x = Year, y = mean_prices, group = Region)) +
+  facet_wrap(~ Region, ncol = 2, nrow = 2) +
+  labs(x = "Year(ranging from 1975 to 2019)", y = "Inflation") +
+  theme_minimal() +
+  geom_line(size = 0.5, aes(color = "#1A9BDB")) +
+  scale_color_manual(values = c("#1A9BDB" = "#1A9BDB")) +
+  theme(
+    panel.spacing = unit(0.1, "lines"),
+    axis.text.x = element_blank(),  # Hide x-axis labels
+    axis.ticks.x = element_blank()  # Hide x-axis ticks
+  ) +
+  ggtitle("Plot of Inflation by Year and Region")
+
+
+
+```
+
+
+
+As we can see from the regionwise graphs drawn, the Northeast has the most increase in the house prices(adjusted for inflation) over the 44 years. The house prices in the west also increase by a sufficient amounnt. However, as seen from the above graphs, the house prices in the midwest fluctuate a lot and their starting and the ending point remains almost the same. The prices in the South also fluctuate a lot, but increase a lot in the final years of our study.
+
+## Importing, preprocessing and cleaning the data for question 2
+
+## Question 2
+```{r}
+census2000 <- read.table('censuspop2000-2.txt')
+
+colnames(census2000) <- census2000[1,]
+
+
+
+census2010 <- read.table('censuspop2010-2.txt')
+
+colnames(census2010) <- census2010[1,]
+
+
+census2019 <- read.table('censuspop2019-2.txt', header=TRUE)
+
+
+#colnames(census2019) <- census2019[1,]
+
+
+census2019$NAME<- toupper(census2019$NAME)
+state_code$State<- toupper(state_code$State)
+
+
+density2019<- census2019[census2019$variable=="DENSITY",]
+
+merged_code_inner <- merge(state_code, density2019, by.x = "State", by.y = "NAME")
+
+# Assuming df is your data frame
+# Assuming df is your data frame
+
+merged_dataset4$State.y<- NULL
+
+merged_house_pop=merge(merged_dataset4,merged_code_inner, by.x="State", by.y = "Code")
+
+```
+## Seperating the 2019 and the 1975 data for plotiing
+```{r}
+
+year_2019=merged_house_pop[merged_house_pop$Year=="2019",]
+
+
+
+year_1975=merged_house_pop[merged_house_pop$Year=="1975",]
+
+library(dplyr)
+year_2019 <- year_2019 %>%
+  group_by(State) %>%
+  mutate(avg_inflation = mean(inflation)) %>%
+  ungroup() %>%
+  distinct(State, .keep_all = TRUE)
+
+
+
+year_1975 <- year_1975 %>%
+  group_by(State) %>%
+  mutate(avg_inflation = mean(inflation)) %>%
+  ungroup() %>%
+  distinct(State, .keep_all = TRUE)
+custom_colors <- rainbow(51)
+
+library(ggrepel) ## to plot the names of the states
+
+# Create a custom color palette with 50 different colors for the states
+custom_colors <- rainbow(51)
+
+
+ggplot(year_2019, aes(x = log(value), y = avg_inflation)) +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = State, color = State), point.padding = 0.5, force = 3, alpha = 0.6) +
+  labs(x = "Log(Population Density)", title = "Plot of Inflation against Population density of 2019") +
+  scale_color_manual(values = custom_colors) +
+  theme(legend.position = "none")  # Remove the legend
+
+
+ggplot(year_1975, aes(x = log(year_2019$value), y = avg_inflation)) + ## to plot the density of 2019 against 1975 inflation
+  geom_smooth(method = "lm") +
+  labs(x = "Log(Population Density)", title = "Plot of Inflation of 1975 against Population density of 2019") +
+  geom_text_repel(aes(label = State, color = State), point.padding = 0.5, force = 3) +
+  scale_color_manual(values = custom_colors) + theme(legend.position = "none")
+
+
+year_1975
+
+grouped_data_2 <- year_1975 %>%
+  group_by(value, Region.x) %>%
+  summarise(mean_prices = mean(inflation), .groups = 'drop')
+
+grouped_data_2 <- subset(grouped_data_2, !is.na(Region.x))
+
+grouped_data_2
+
+ggplot(grouped_data_2, aes(x = log(value), y = mean_prices)) +
+  geom_smooth(method = "lm") +
+  labs(x = "Log(Population Density)", title = "Plot of inflation of 1975 against population density of 2019") +
+  scale_color_manual(values = custom_colors) + facet_grid(~ Region.x)
+  theme(legend.position = "none")  # Remove the legend
+  
+  
+  
+  
+year_2019
+
+grouped_data_3 <- year_2019 %>%
+  group_by(value, Region.x) %>%
+  summarise(mean_prices = mean(inflation), .groups = 'drop')
+
+grouped_data_3 <- subset(grouped_data_3, !is.na(Region.x))
+
+grouped_data_3
+
+ggplot(grouped_data_3, aes(x = log(value), y = mean_prices)) +
+  geom_smooth(method = "lm") +
+  labs(x = "Log(Population Density)", title = "Plot of Inflation against Population density of 2019") +
+  scale_color_manual(values = custom_colors) +
+  facet_grid(~ Region.x) +
+  theme(legend.position = "none")
+
+
+
+```
+As we can see from the above graphs, the values have changed a lot from the the 1975 graphs. In the 2019 plot of the house prices against the log of the population density, we see some clear outliers such as the District of Columbia and the states of Ohio and Indiana. As seen from the question 1, we know the the house prices adjusted for inflation of DC increased by the most as compared to the other states. The linear model basically helps us identify the states which are outliers.
+
+In the graph of the 1975 house prices against the log of the 2019 population density, the clear outliers are Massachusetts, West Virginia and the state of Washington. As seen from the question 1, these values are low at the start in 1975, which makes sense in this graph as they are outliers.
+
+## Plotting the division of the 2019 value to the 1975 value(house prices) against the population density
+```{r}
+
+year_2019$inflation_difference <- year_2019$inflation / year_1975$inflation
+
+
+ggplot(year_2019, aes(x = log(year_2019$value), y = inflation_difference)) +
+  #geom_point() +
+  geom_smooth(method = "lm") + labs(x="log(Population Density)", title="Scaling the 2019 indlation to the 1975 inlfation against the population density")+geom_text_repel(aes(label = State, color = State), point.padding = 0.5, force = 3) +
+  scale_color_manual(values = custom_colors)+ theme(legend.position = "none")
+
+
+grouped_data_4 <- year_2019 %>%
+  group_by(value, Region.x) %>%
+  summarise(mean_prices = mean(inflation_difference), .groups = 'drop')
+
+grouped_data_4 <- subset(grouped_data_4, !is.na(Region.x))
+
+grouped_data_4
+
+ggplot(grouped_data_4, aes(x = log(value), y = mean_prices)) +
+  geom_smooth(method = "lm") +
+  labs(x = "Log(Population Density)", title = "Plot of Inflation against Population density of 2019") +
+  scale_color_manual(values = custom_colors) +
+  facet_grid(~ Region.x) +
+  theme(legend.position = "none")
+
+
+```
+
+
+
+The above graph is a division of the 2019 values to the 1975 values to evaluate the differences between the two years. We can see in this graph and can reconfirm what we concluded in the first and the second graphs that the states of DC, washington and the California are outliers.
+
+
+```{r}
+grouped_data2 <- year_2019 %>%
+  group_by(as.character(Year), Region.x) %>%
+  summarise(mean_prices = mean(inflation))
+grouped_data2
+
+grouped_data3 <- year_1975 %>%
+  group_by(as.character(Year), Region.x) %>%
+  summarise(mean_prices = mean(inflation))
+grouped_data3
+```
+
+As we can see from the above datasets, the Northeast has increased by a large value from around 45 to 69. The South values also have a significant change from 61 to 71. The major difference is in the west though which ranges from 49 to 85. This actually makes a lot of sense as the graphs in the question 1 signify exactly this.
+
+
+
+## Question 3
+## importing library
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(tidycensus)
+library(tidyverse)
+
+census_api_key("a6e25ba591d7d6a7cf8a8bab687a7c31b4ef7b61")
+```
+
+## importing data
+```{r}
+# library(readxl)
+# data<-read_excel("State_and_US_SA.xls")
+# state_abbrevs <- read.table("state_abbrevs.txt", header = TRUE, stringsAsFactors = FALSE)
+# # cpi_data <- read.csv("cpi.csv")
+
+
+# 
+library(readxl)
+data<-read_excel("State_and_US_SA.xls")
+state_abbrevs <- read.table("state_abbrevs.txt", header = TRUE, stringsAsFactors = FALSE)
+cpi_data <- read.csv("cpi.csv")
+
+
+
+```
+
+```{r}
+edited_data <- data[-c(1:4), ]
+colnames(edited_data) <- edited_data[1, ]
+edited_data <- edited_data[-1, ]
+
+```
+
+## getting data of only required years(1990,2000,2010,2019) from house price index
+```{r}
+
+years_to_filter <- c(1990,2000,2010,2019)
+
+filtered_df <- edited_data %>%
+  mutate(year = as.integer(substr(Month, 1, 4))) %>%
+  filter(year %in% years_to_filter) %>%
+  select(-year)
+filtered_df<-filtered_df[,-53]
+```
+## gathering population data and and removing unwanted columns
+```{r}
+population_data00 <- get_decennial(geography = "state", 
+                           variables = "P001001",
+                           year = 2000)
+population_data00<-population_data00[,-3]
+population_data00<-population_data00[,-1]
+population_data10 <- get_decennial(geography = "state", 
+                           variables = "P001001",
+                           year = 2010)
+population_data10<-population_data10[,-3]
+population_data10<-population_data10[,-1]
+population_data19<- read.table("censuspop2019.txt", header = TRUE,colClasses = c("character", "character", "character","integer"),nrows=52)
+population_data19<-population_data19[,-3]
+population_data19<-population_data19[,-2]
+
+
+data <- read.csv("nhgis0003_ts_nominal_state.csv", header = TRUE)
+
+to_del<-880:1035
+data<-data[-to_del,]
+to_del<- 1:828
+data<-data[-to_del,]
+to_del<-1:5
+data<-data[,-to_del]
+rownames(data) <- NULL
+colnames(data)<-c("NAME","value")
+
+population_data90<-data
+```
+
+## removing puerto Rico as it is unavailable in 1990
+
+```{r}
+
+
+population_data00 <- population_data00[population_data00[, "NAME"] != 	"Puerto Rico", ]
+population_data10 <- population_data10[population_data10[, "NAME"] != 	"Puerto Rico", ]
+population_data19 <- population_data19[population_data19[, "NAME"] != 	"Puerto Rico", ]
+
+rownames(population_data90) <- NULL
+rownames(population_data00) <- NULL
+rownames(population_data10) <- NULL
+rownames(population_data19) <- NULL
+
+population_data90 <- population_data90[order(population_data90$NAME), ]
+population_data00 <- population_data00[order(population_data00$NAME), ]
+population_data10 <- population_data10[order(population_data10$NAME), ]
+population_data19 <- population_data19[order(population_data19$NAME), ]
+
+
+```
+
+
+## Calculate the percentage change in population for each state over the three time periods
+```{r}
+population_change_90_00 <- population_data00 %>%
+  left_join(population_data90, by = "NAME") %>%
+  mutate(change_90_00 = (value.x - value.y) / value.y * 100) %>%
+  select(NAME, change_90_00)
+
+population_change_00_10 <- population_data10 %>%
+  left_join(population_data00, by = "NAME") %>%
+  mutate(change_00_10 = (value.x - value.y) / value.y * 100) %>%
+  select(NAME, change_00_10)
+
+population_change_10_19 <- population_data19 %>%
+  left_join(population_data10, by = "NAME") %>%
+  mutate(change_10_19 = (value.x - value.y) / value.y * 100) %>%
+  select(NAME, change_10_19)
+```
+
+
+## Calculate the percentage change in house prices for each state over the three time periods
+```{r}
+house_price_data_changes_bf <- filtered_df %>%
+  pivot_longer(cols = -Month, names_to = "State_code", values_to = "House_Price_Index") %>%
+  separate(Month, into = c("year", "month"), sep = "M")
+
+#converting few columns to numeric for calculations
+house_price_data_changes_bf$House_Price_Index <- as.numeric(house_price_data_changes_bf$House_Price_Index)
+house_price_data_changes_bf$month<-as.numeric(house_price_data_changes_bf$month)
+house_price_data_changes_bf$year<-as.numeric(house_price_data_changes_bf$year)
+
+```
+
+
+```{r}
+
+#house_price_data_changes_01<-house_price_data_changes_bf%>%
+#group_by(State_code, year) %>%
+#  summarize(price_change = (last(House_Price_Index) - first(House_Price_Index)) / first(House_Price_Index) * 100) %>%
+#  pivot_wider(names_from = year, values_from = price_change)
+```
+
+
+#inflation calculation on house price index
+```{r}
+cpi_data$month<-as.numeric(sub("M","",cpi_data$Period))
+
+new_cpi_data<- cpi_data%>%filter(Year %in% years_to_filter)
+new_cpi_data$Year<-as.numeric(new_cpi_data$Year)
+
+merge_data_cpi<-inner_join(house_price_data_changes_bf,new_cpi_data,by=c("year"="Year","month"="month"))
+# calculating inflated price by HPI/CPI*100
+merge_data_cpi$inflated_HPI<-(merge_data_cpi$House_Price_Index/merge_data_cpi$Value)*100
+merge_data_cpi<-subset(merge_data_cpi,select = -c(Series.ID,Period,Label,House_Price_Index,Value))
+merge_data_cpi<-merge_data_cpi%>%rename(House_Price_Index=inflated_HPI)
+house_price_data_changes_bf<-merge_data_cpi
+
+```
+
+
+
+
+## calculating the percentage of house price changes in the respective periods
+```{r}
+
+house_price_data_changes_01<-house_price_data_changes_bf%>%
+group_by(State_code,year) %>%
+  summarize(mean_value=mean(House_Price_Index),.groups = "drop")%>%
+  pivot_wider(names_from = year, values_from = mean_value)
+
+house_price_data_changes_01 <- merge(state_abbrevs, house_price_data_changes_01, by.x = "Code",by.y="State_code" ,all.x = TRUE)
+
+house_price_data_changes_01$HPI_1990_2000<-((house_price_data_changes_01$`2000` - house_price_data_changes_01$`1990`)/house_price_data_changes_01$`1990`)*100
+house_price_data_changes_01$HPI_2000_2010<-((house_price_data_changes_01$`2010` - house_price_data_changes_01$`2000`)/house_price_data_changes_01$`2000`)*100
+house_price_data_changes_01$HPI_2010_2019<-((house_price_data_changes_01$`2019` - house_price_data_changes_01$`2010`)/house_price_data_changes_01$`2010`)*100
+
+```
+
+```{r}
+all_data_merged<-population_change_90_00 %>%
+  left_join(house_price_data_changes_01, by =c("NAME"="State"))
+
+all_data_merged<-population_change_00_10 %>%
+  left_join(all_data_merged, by =c("NAME"="NAME"))
+
+all_data_merged<-population_change_10_19 %>%
+  left_join(all_data_merged, by =c("NAME"="NAME"))
+
+```
+
+
+## each state 1990-2000
+```{r}
+sample_90_00<-ggplot(all_data_merged, aes(x = NAME, y = change_90_00,size=HPI_1990_2000, color = NAME)) +
+  geom_point(alpha=0.7) +
+  labs(x = "state names", y = "population Change (1990-2000)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. House Price Change (1990-2000)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+     legend.position = "none",
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+
+width <- 16
+height <- 10
+
+# Save the plot with the specified size
+# ggsave("state_90_00.png", sample_90_00, width = width, height = height)
+
+# sample_90_00<-sample_90_00+geom_text(aes(label=HPI_1990_2000),nudge_x=0.2,nudge_y=0.2)
+sample_90_00
+```
+in time period 1990-2000 Nevada state has the highest change in population and most of the other states has change in population between 0% and around 15%. The colorado state has the highest change in house price
+
+
+
+
+## each state 2000-2010
+```{r}
+sample_00_10<-ggplot(all_data_merged, aes(x = NAME, y =change_00_10 ,size=HPI_2000_2010, color = NAME)) +
+  geom_point(alpha=0.7) +
+  labs(x = "state names", y = "Population Change (2000-2010)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. population Change (2000-2010)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+     legend.position = "none",
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+
+width <- 16
+height <- 10
+
+# Save the plot with the specified size
+ggsave("state_00_10.png", sample_00_10, width = width, height = height)
+
+sample_00_10
+```
+in 2000-2010 period also Nevada has the highest change in population. the increase in population of most of the other states is less than 20% and Michigan has almost same population from start to end of the decade. District of Columbia has the highest change in house prices, Michigan has almost no change in house prices.
+
+
+
+## each state 2010-2019
+```{r}
+ggplot(all_data_merged, aes(x = NAME, y =change_10_19 ,size=HPI_2010_2019, color = NAME)) +
+  geom_point(alpha=0.7) +
+  labs(x = "state names", y = "Population Change (2010-2019)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. population Change (2010-2019)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+```
+the district of Columbia has the highest change in population and west Virginia has the lowest change in population.
+Nevada has the highest change in House prices and Connecticut has the lowesst change in house price in that decade.
+
+
+
+```{r}
+width <- 16
+height <- 10
+
+# Save the plot with the specified size
+#ggsave("state_10_19.png", sample_10_19, width = width, height = height)
+
+
+```
+
+
+## calculating on region
+
+```{r}
+population_data90_reg <- merge(state_abbrevs, population_data90, by.x = "State",by.y="NAME" ,all.x = TRUE)
+population_data00_reg <- merge(state_abbrevs, population_data00, by.x = "State",by.y="NAME" ,all.x = TRUE)
+population_data10_reg <- merge(state_abbrevs, population_data10, by.x = "State",by.y="NAME" ,all.x = TRUE)
+population_data19_reg <- merge(state_abbrevs, population_data19, by.x = "State",by.y="NAME" ,all.x = TRUE)
+
+population_data90_reg <- population_data90_reg %>% rename(pop_1990 = value)
+population_data00_reg <- population_data00_reg %>% rename(pop_2000 = value)
+population_data10_reg <- population_data10_reg %>% rename(pop_2010 = value)
+population_data19_reg <- population_data19_reg %>% rename(pop_2019 = value)
+```
+
+
+```{r}
+merged_data_region <- inner_join(population_data90_reg,population_data00_reg, by=c("State","Code","Region"))%>%
+  inner_join(population_data10_reg,by=c("State","Code","Region"))%>%
+  inner_join(population_data19_reg,by=c("State","Code","Region"))
+
+
+  
+```
+
+
+```{r}
+pop_region<-merged_data_region%>%
+group_by(Region) %>%
+  summarize(pop_mean_1990=mean(pop_1990),
+            pop_mean_2000=mean(pop_2000),
+            pop_mean_2010=mean(pop_2010),
+            pop_mean_2019=mean(pop_2019)
+            )
+```
+
+
+
+```{r}
+house_price_data_changes_bf <- merge(state_abbrevs, house_price_data_changes_bf, by.x = "Code",by.y="State_code" ,all.x = TRUE)
+house_price_data_changes_region<-house_price_data_changes_bf%>%
+group_by(year,Region) %>%
+  summarize(mean_value=mean(House_Price_Index))%>%
+  pivot_wider(names_from = year, values_from = mean_value)
+```
+## calculating the difference of populations and Hose price index based on region for each period
+
+```{r}
+house_price_data_changes_region$HPI_1990_2000<-((house_price_data_changes_region$`2000` - house_price_data_changes_region$`1990`)/house_price_data_changes_region$`1990`)*100
+house_price_data_changes_region$HPI_2000_2010<-((house_price_data_changes_region$`2010` - house_price_data_changes_region$`2000`)/house_price_data_changes_region$`2000`)*100
+house_price_data_changes_region$HPI_2010_2019<-((house_price_data_changes_region$`2019` - house_price_data_changes_region$`2010`)/house_price_data_changes_region$`2010`)*100
+
+pop_region$pop_1990_2000<-((pop_region$pop_mean_2000 - pop_region$pop_mean_1990)/pop_region$pop_mean_1990)*100
+pop_region$pop_2000_2010<-((pop_region$pop_mean_2010 - pop_region$pop_mean_2000)/pop_region$pop_mean_2000)*100
+pop_region$pop_2010_2019<-((pop_region$pop_mean_2019 - pop_region$pop_mean_2010)/pop_region$pop_mean_2010)*100
+
+```
+
+
+### merging all data into one data frame
+```{r}
+all_region_data=merge(pop_region,house_price_data_changes_region, by="Region")
+```
+
+## plot for region 1990-2000
+```{r}
+ggplot(all_region_data, aes(x = Region, y = pop_1990_2000,size=HPI_1990_2000, color = Region)) +
+  geom_point(alpha=0.7) +
+  geom_text(aes(label = format(HPI_1990_2000,nsmall=0)),nudge_y = 1,size=3)+
+  labs(x = "state names", y = "Population Change (1990-2000)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. House Price Change (1990-2000)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+```
+## plot for region 2000-2010
+```{r}
+ggplot(all_region_data, aes(x = Region, y = pop_2000_2010,size=HPI_2000_2010, color = Region)) +
+  geom_point(alpha=0.7) +
+  geom_text(aes(label = format(HPI_2000_2010)),nudge_y = 1,size=3)+
+  labs(x = "state names", y = "population Change (2000-2010)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. House Price Change (2000-2010)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+```
+
+## plot for region 2010-2019
+```{r}
+ggplot(all_region_data, aes(x = Region, y = pop_2010_2019,size=HPI_2010_2019, color = Region)) +
+  geom_point(alpha=0.7) +
+  geom_text(aes(label = format(HPI_2010_2019)),nudge_y = 1,size=3)+
+  labs(x = "state names", y = "Population Change (2010-2019)",
+       subtitle = "size of point represents change in house_price in that period",
+       title = "Population vs. House Price Change (2010-2019)") +
+  theme_minimal() +
+  scale_color_discrete(name = "State")+
+   theme(
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.background = element_rect(fill = "white")  # Set plot background color (optional)
+  )
+```
+
+
+## explination
+### state wise
+for few states there is relation between population change and house price index
+
+Nevada has more than 60% increase in population but house prices didn't change much between 1990-2000.
+In 2000-2010 also the population change is very high ,but house price change is very negligible
+in 2010-2019 Nevada has competitive increase in population and the house price changes are also very high.
+it seems that for Nevada there is continuous  increase in population while the the house price is not much affected in first two periods but increased a lot in 2010-2019 period.
+
+where Colorado has highest change in house prices where the population change is with around 30% in 1990-2000
+In 2000-2010 population increase is average with 15% and house price increase is also average.
+In 2010-2019 high change in population and house prices are also increased a lot.
+for Colorado itseems there is trend between the increase in house price and increse in population in all three time periods.
+
+### region wise
+the West region has 20% increase in population in 1990-2000 and 14% increase in house price
+in 2000-2010 around 14% increase in population and 11% increase in house price
+and in 2010-2019 9% increase in population and 34% increase in house prices
+The house prices and population increased constantly in all three periods.
+
+based on Regions of states , considering northeast region it has low population increase in all three periods, but for house price the time period 2000-2010 has highest change in percentage.
+The west Region has good relationship between population change and house price change in all three  periods of time
+
+
